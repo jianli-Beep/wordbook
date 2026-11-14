@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#4f46e5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="单词收集本">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>单词收集本</title>
+<style>
+:root{--bg:#f4f2ee;--card:#fff;--ink:#1a1a1a;--sub:#8a857d;--accent:#4f46e5;--line:#e7e3dc;--gold:#e8a33d;--ok:#16a34a;--bad:#dc2626}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);padding-bottom:64px}
+header{background:linear-gradient(135deg,#4f46e5,#6d28d9);color:#fff;padding:16px 16px 14px;padding-top:calc(16px + env(safe-area-inset-top))}
+header .top{display:flex;align-items:center;justify-content:space-between}
+header h1{font-size:19px;font-weight:700;letter-spacing:.5px}
+header h1 .zh{display:block;font-size:11px;color:#cfc6ff;font-weight:400;letter-spacing:1px;margin-top:2px}
+header .gear{background:rgba(255,255,255,.16);border:none;color:#fff;font-size:17px;width:38px;height:38px;border-radius:10px;cursor:pointer}
+.hintbar{background:#ede9fe;color:#5b21b6;font-size:12.5px;padding:9px 14px;line-height:1.6;border-bottom:1px solid #e4dcfb}
+.hintbar b{font-weight:700}
+main{padding:12px 12px 20px;max-width:560px;margin:0 auto}
+.cap-box{background:var(--card);border-radius:16px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.cap-row{display:flex;gap:9px}
+.cap-row input{flex:1;border:1px solid var(--line);border-radius:12px;padding:13px 14px;font-size:17px;outline:none;background:#fff;min-width:0}
+.cap-row input:focus{border-color:var(--accent)}
+.cap-row button{flex:0 0 auto;padding:0 18px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+.quick{display:flex;gap:8px;margin-top:10px}
+.quick button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:#f7f5f1;color:#555;font-size:13px;cursor:pointer}
+.result{margin-top:14px;background:var(--card);border-radius:16px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.06);display:none}
+.result.show{display:block}
+.r-head{display:flex;align-items:flex-start;gap:10px}
+.r-main{flex:1;min-width:0}
+.r-word{font-size:24px;font-weight:800;word-break:break-word;line-height:1.2}
+.r-ph{font-family:Georgia,serif;color:#777;font-size:14px;margin-top:3px}
+.r-badges{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px}
+.r-badge{font-size:10.5px;background:#ede9fe;color:#6d28d9;border-radius:5px;padding:2px 7px}
+.r-badge.gold{background:#fdf3e3;color:#b06a10}
+.r-actions{margin-top:12px;display:flex;gap:9px}
+.r-actions button{flex:1;padding:13px;border-radius:12px;font-size:15px;border:none;cursor:pointer;font-weight:600}
+.r-save{background:var(--accent);color:#fff}
+.r-save.saved{background:var(--ok);color:#fff}
+.r-listen{background:#f3f0ea;color:#555}
+.r-spk{flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.r-spk.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.r-tr{margin-top:12px;border-top:1px solid var(--line);padding-top:11px}
+.r-tr .line{font-size:14.5px;color:#3a3a3a;line-height:1.65}
+.r-tr .line:first-child{font-weight:600;color:var(--ink)}
+.r-tr .line.note{color:#999;font-size:13px}
+.r-note{margin-top:11px}
+.r-note input{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:14px;outline:none;background:#faf9f7}
+.r-note input:focus{border-color:var(--accent)}
+.r-notfound{color:#b02a2a;font-size:13px;margin:6px 0}
+.sec-title{font-size:13px;color:var(--sub);margin:16px 2px 8px;font-weight:600}
+.search-row{display:flex;gap:8px;margin-bottom:10px}
+.search-row input{flex:1;border:1px solid var(--line);border-radius:11px;padding:11px 13px;font-size:15px;outline:none;background:#fff}
+.chips{display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap}
+.chip{flex:1;padding:8px 6px;border-radius:20px;border:1px solid var(--line);background:#fff;color:#666;font-size:12.5px;cursor:pointer;white-space:nowrap;text-align:center}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.stats{font-size:12.5px;color:var(--sub);margin:2px 2px 8px}
+.stats b{color:var(--accent)}
+.wrow{background:var(--card);border-radius:13px;padding:12px 13px;display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.wrow .wspk{flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.wrow .wspk.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.wrow .wmain{flex:1;min-width:0}
+.wrow .wen{font-size:16px;font-weight:700;word-break:break-word}
+.wrow .wen .ph{font-family:Georgia,serif;color:#999;font-weight:400;font-size:12.5px;margin-left:5px}
+.wrow .wtr{font-size:13px;color:var(--sub);margin-top:3px;line-height:1.55;word-break:break-word}
+.wrow .wtr.note{color:#b7a98a;font-size:12px}
+.wrow .wmeta{font-size:10.5px;color:#c0bbb2;margin-top:4px;display:flex;gap:6px;align-items:center}
+.wrow .badge{display:inline-block;font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:4px;padding:1px 5px}
+.wrow .wops{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
+.wrow .wops button{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:14px;cursor:pointer}
+.wrow .wops .done{color:#999}
+.wrow .wops .done.on{background:var(--ok);color:#fff;border-color:var(--ok)}
+.wrow .wops .del{color:#c0392b}
+.review-card{background:var(--card);border-radius:16px;padding:26px 18px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.review-card .spk{font-size:56px;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.12);opacity:.6}}
+.review-card .status{color:var(--sub);font-size:13px;margin-top:6px}
+.review-card .word{font-size:28px;font-weight:800;word-break:break-word;margin-top:6px}
+.review-card .ph{font-family:Georgia,serif;color:#777;font-size:15px;margin-top:4px}
+.review-card .tr{margin-top:14px;font-size:15px;color:#3a3a3a;line-height:1.7;text-align:left;border-top:1px solid var(--line);padding-top:12px}
+.review-card .tr .line:first-child{font-weight:600;color:var(--ink)}
+.review-ops{margin-top:18px;display:flex;gap:9px;flex-wrap:wrap}
+.review-ops button{flex:1;padding:13px 6px;border-radius:12px;font-size:14px;border:none;cursor:pointer;font-weight:600;min-width:72px}
+.rop-forgot{background:#fdeeee;color:#b02a2a}
+.rop-again{background:#f3f0ea;color:#555}
+.rop-know{background:#e9f9ef;color:#0b7a3b}
+.rop-master{background:var(--accent);color:#fff}
+.review-ops .reveal{flex:1 1 100%;background:#fff;color:#666;border:1px solid var(--line)}
+.emptystate{text-align:center;padding:46px 20px;color:var(--sub);font-size:14px;line-height:2}
+.emptystate .big{font-size:46px;margin-bottom:8px}
+nav.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;background:#fff;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabbar button{flex:1;padding:10px 4px;border:none;background:none;font-size:12px;color:var(--sub);cursor:pointer}
+nav.tabbar button .ic{display:block;font-size:21px;line-height:1.2}
+nav.tabbar button.on{color:var(--accent);font-weight:700}
+nav.tabbar button .bd{display:inline-block;min-width:17px;height:17px;line-height:17px;padding:0 4px;border-radius:9px;background:#f1ede4;color:#999;font-size:10.5px;margin-left:2px}
+nav.tabbar button.on .bd{background:var(--accent);color:#fff}
+.toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%) translateY(20px);background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;opacity:0;transition:.25s;z-index:99;pointer-events:none;max-width:86vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:none;align-items:center;justify-content:center;padding:24px}
+.mask.show{display:flex}
+.sheet{background:#fff;border-radius:18px;padding:20px 18px;width:100%;max-width:400px;max-height:82vh;overflow:auto}
+.sheet h3{font-size:16px;margin-bottom:10px}
+.sheet p{font-size:13.5px;color:var(--sub);line-height:1.7;margin-bottom:8px}
+.sheet .acts{display:flex;gap:9px;margin-top:16px;flex-wrap:wrap}
+.sheet .acts button{flex:1;padding:12px;border-radius:11px;font-size:14px;border:none;cursor:pointer;font-weight:600;min-width:90px}
+.sheet .acts .ok{background:var(--accent);color:#fff}
+.sheet .acts .cancel{background:#eee;color:#555}
+.sheet input[type=file]{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div><h1>单词收集本<span class="zh">WORD NOTEBOOK · 离线词典 · 循环朗读</span></h1></div>
+    <button class="gear" onclick="openSettings()">⚙️</button>
+  </div>
+</header>
+<div class="hintbar" id="hintbar" style="display:none"></div>
+
+<main>
+  <!-- 收藏 -->
+  <div id="v-add">
+    <div class="cap-box">
+      <div class="cap-row">
+        <input id="cap-input" placeholder="输入或粘贴单词，自动查词" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button onclick="doLookup()">查词</button>
+      </div>
+      <div class="quick">
+        <button onclick="pasteClip()">📋 粘贴剪贴板</button>
+        <button onclick="clearCap()">清空</button>
+      </div>
+    </div>
+    <div class="result" id="cap-result"></div>
+    <div class="emptystate" id="cap-empty">
+      <div class="big">➕</div>
+      <p>看到生词，三种方式最快收进来：<br>
+      ① 在其他 App 里<b>长按选中单词 → 分享 → 选「单词收集本」</b><br>
+      ② 复制单词 → 回到这里点「📋 粘贴」<br>
+      ③ 直接在这里输入单词</p>
+    </div>
+  </div>
+
+  <!-- 词本 -->
+  <div id="v-list" style="display:none">
+    <div class="search-row"><input id="list-search" placeholder="🔍 搜索词本…" oninput="renderList()"></div>
+    <div class="chips" id="list-chips">
+      <button class="chip on" data-f="all" onclick="setFilter('all')">全部</button>
+      <button class="chip" data-f="todo" onclick="setFilter('todo')">待复习</button>
+      <button class="chip" data-f="mastered" onclick="setFilter('mastered')">已掌握</button>
+    </div>
+    <div class="stats" id="list-stats"></div>
+    <div id="list-body"></div>
+    <div class="quick">
+      <button onclick="exportJSON()">⬆ 导出备份</button>
+      <button onclick="$('import-file').click()">⬇ 导入备份</button>
+      <button onclick="clearAll()">🗑 清空</button>
+    </div>
+  </div>
+
+  <!-- 复习 -->
+  <div id="v-review" style="display:none">
+    <div class="stats" id="review-stats"></div>
+    <div id="review-body"></div>
+  </div>
+</main>
+
+<nav class="tabbar">
+  <button class="on" data-t="add" onclick="setTab('add')"><span class="ic">➕</span>收藏</button>
+  <button data-t="list" onclick="setTab('list')"><span class="ic">📚</span>词本</button>
+  <button data-t="review" onclick="setTab('review')"><span class="ic">🔁</span>复习<span class="bd" id="review-badge">0</span></button>
+</nav>
+
+<div class="mask" id="settings-mask">
+  <div class="sheet">
+    <h3>⚙️ 设置与说明</h3>
+    <p><b>① 如何快速收藏？</b><br>在任意 App（浏览器/小红书/微信文章）里长按选中生词 → 点「分享」→ 选「单词收集本」，即可自动查词并一键收藏。</p>
+    <p><b>② 加到主屏幕</b><br>iPhone：Safari 打开 → 分享 →「添加到主屏幕」。<br>安卓：Chrome 菜单 →「安装应用」或「添加到主屏幕」。</p>
+    <p><b>③ 数据</b>：收藏保存在本机浏览器，建议定期「导出备份」。</p>
+    <p id="dict-info" style="color:#999"></p>
+    <div class="acts">
+      <button class="cancel" onclick="closeSettings()">关闭</button>
+      <button class="ok" id="install-btn" style="display:none" onclick="doInstall()">📲 安装应用</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="import-file" accept=".json,application/json" onchange="importJSON(event)">
+
+<script src="dict.js"></script>
+<script>
+const LS_KEY = "wordbook_v1";
+const TAG_LABEL = {zk:"中考", gk:"高考", cet4:"四级", cet6:"六级", ky:"考研", toefl:"托福", ielts:"雅思", gre:"GRE"};
+const TAG_ORDER = ["gre","toefl","ielts","ky","cet6","cet4","gk","zk"];
+const INTERVAL = [5*60*1000, 60*60*1000, 24*60*60*1000, 3*24*60*60*1000, 7*24*60*60*1000, 14*24*60*60*1000];
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+// ---- 数据 ----
+let words = load();
+let tab = "add";
+let listFilter = "all";
+let audioOn = true, loopGen = 0, spkToken = 0;
+let curLookup = null;   // 当前查词结果
+let reviewQueue = [], reviewIdx = 0, reviewDone = 0, reviewRevealed = false;
+let deferredInstall = null;
+
+function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"[]"); }catch(e){ return []; } }
+function save(){ localStorage.setItem(LS_KEY, JSON.stringify(words)); }
+
+// ---- TTS 循环朗读 ----
+function speak(text, onend){
+  if(!text) return;
+  try{
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US"; u.rate = 0.85;
+    const vs = speechSynthesis.getVoices();
+    const pick = vs.find(v=>/google/i.test(v.name)&&/^en/i.test(v.lang))
+              || vs.find(v=>/^en-US/i.test(v.lang))
+              || vs.find(v=>/^en/i.test(v.lang));
+    if(pick) u.voice = pick;
+    const tok = ++spkToken;
+    u.onend = ()=>{ if(tok !== spkToken) return; if(onend) onend(); };
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }catch(e){ toast("当前浏览器不支持语音朗读"); }
+}
+function loopPlay(text){
+  if(!text || !audioOn) return;
+  const gen = ++loopGen;
+  (function tick(){
+    if(gen !== loopGen || !audioOn) return;
+    speak(text, ()=>{ if(gen === loopGen) setTimeout(tick, 700); });
+  })();
+}
+function stopAudio(){ loopGen++; spkToken++; try{ speechSynthesis.cancel(); }catch(e){} }
+function toggleAudio(){
+  audioOn = !audioOn;
+  if(!audioOn){ stopAudio(); }
+  else if(tab === "review" && reviewQueue[reviewIdx]) loopPlay(reviewQueue[reviewIdx].w);
+  render();
+}
+
+// ---- 查词 ----
+function normalize(w){ return (w||"").trim().toLowerCase(); }
+function lookup(raw){
+  let w = normalize(raw);
+  if(!w) return null;
+  const m = w.match(/[a-z]+(?:['’-][a-z]+)*/);
+  w = m ? m[0] : w;
+  if(window.DICT && DICT[w]){
+    const [ph, tr, tag] = DICT[w].split("\x1f");
+    return {found:true, word:w, ph:ph||"", tr:tr||"", tag:tag||"", via:null};
+  }
+  if(window.LEMMA && LEMMA[w] && window.DICT && DICT[LEMMA[w]]){
+    const base = LEMMA[w];
+    const [ph, tr, tag] = DICT[base].split("\x1f");
+    return {found:true, word:base, ph:ph||"", tr:tr||"", tag:tag||"", via:w};
+  }
+  // 简单后缀还原兜底
+  const tries = [w.replace(/ies$/,"y"), w.replace(/[^aeiou]ied$/,"y"), w.replace(/(sses|shes|ches|xes|zes)$/, s=>s.slice(0,-2)),
+                 w.replace(/s$/,""), w.replace(/ed$/,""), w.replace(/d$/,""), w.replace(/ing$/,""),
+                 w.replace(/er$/,""), w.replace(/est$/,"")];
+  for(const t of tries){
+    if(t !== w && t.length > 1 && window.DICT && DICT[t]){
+      const [ph, tr, tag] = DICT[t].split("\x1f");
+      return {found:true, word:t, ph:ph||"", tr:tr||"", tag:tag||"", via:w};
+    }
+  }
+  return {found:false, word:w, ph:"", tr:"", tag:"", via:null};
+}
+function tagBadges(tag){
+  const ts = (tag||"").split(/\s+/).filter(Boolean);
+  if(!ts.length) return "";
+  const sorted = ts.slice().sort((a,b)=>(TAG_ORDER.indexOf(a)+99)-(TAG_ORDER.indexOf(b)+99));
+  return sorted.slice(0,2).map(t=>`<span class="r-badge">${esc(TAG_LABEL[t]||t)}</span>`).join("");
+}
+function doLookup(){
+  const raw = $("cap-input").value;
+  const r = lookup(raw);
+  curLookup = r;
+  if(!r || !raw.trim()){ toast("请输入单词"); return; }
+  $("cap-empty").style.display = "none";
+  const el = $("cap-result");
+  el.classList.add("show");
+  const saved = words.some(x=>normalize(x.w)===normalize(r.word));
+  el.innerHTML = `
+    <div class="r-head">
+      <button class="r-spk" id="r-spk" onclick="toggleResultAudio()">🔊</button>
+      <div class="r-main">
+        <div class="r-word">${esc(r.word)}${r.via?`<span style="font-size:13px;color:#999;font-weight:400"> (原形，你输入的是 ${esc(r.via)})</span>`:""}</div>
+        ${r.ph?`<div class="r-ph">/${esc(r.ph)}/</div>`:""}
+        <div class="r-badges">${tagBadges(r.tag)}</div>
+      </div>
+    </div>
+    ${r.found ? `
+      <div class="r-tr">${(r.tr||"").split("\n").map((l,i)=>`<div class="line">${esc(l)}</div>`).join("")}</div>`
+      : `<div class="r-notfound">⚠️ 离线词典未收录该词，仍可收藏原词，之后自己补释义。</div>`}
+    <div class="r-note"><input id="cap-note" placeholder="例句 / 备注（可选，如你看到它的那句话）" autocomplete="off"></div>
+    <div class="r-actions">
+      <button class="r-listen" onclick="toggleResultAudio()">${audioOn?"🔊 循环朗读":"🔇 已暂停"}</button>
+      <button class="r-save ${saved?"saved":""}" onclick="saveCur()">${saved?"✓ 已收藏":"💾 收藏"}</button>
+    </div>`;
+  if(r.found) loopPlay(r.word);
+}
+function toggleResultAudio(){
+  const btn = $("r-spk");
+  if(audioOn && curLookup){
+    stopAudio(); audioOn = false;
+    if(btn) btn.classList.remove("on");
+  } else {
+    audioOn = true;
+    if(curLookup) loopPlay(curLookup.word);
+    if(btn) btn.classList.add("on");
+  }
+  if(btn) btn.textContent = audioOn ? "🔊" : "🔇";
+  const lb = document.querySelector("#cap-result .r-listen");
+  if(lb) lb.textContent = audioOn ? "🔊 循环朗读" : "🔇 已暂停";
+}
+function saveCur(){
+  if(!curLookup) return;
+  const w = curLookup.word;
+  const exists = words.find(x=>normalize(x.w)===normalize(w));
+  if(exists){ toast("词本里已经有了： "+w); return; }
+  words.push({
+    id: uid(),
+    w: curLookup.word,
+    ph: curLookup.ph,
+    tr: curLookup.tr,
+    tag: curLookup.tag,
+    note: $("cap-note") ? $("cap-note").value.trim() : "",
+    t: Date.now(),
+    mastered: false,
+    level: 0,
+    due: Date.now()
+  });
+  save();
+  toast("已收藏 ✓  共 "+words.length+" 词");
+  clearCap();
+  render();
+}
+function clearCap(){
+  $("cap-input").value = "";
+  $("cap-result").classList.remove("show");
+  $("cap-result").innerHTML = "";
+  $("cap-empty").style.display = "";
+  curLookup = null;
+  stopAudio();
+}
+async function pasteClip(){
+  try{
+    const t = await navigator.clipboard.readText();
+    if(t && t.trim()){ $("cap-input").value = t.trim(); doLookup(); }
+    else toast("剪贴板是空的");
+  }catch(e){
+    // 兜底：让用户手动长按粘贴
+    toast("请长按输入框手动粘贴");
+    $("cap-input").focus();
+  }
+}
+
+// ---- 词本 ----
+function setFilter(f){ listFilter = f; renderList(); }
+function renderList(){
+  const q = normalize($("list-search").value);
+  let arr = words.slice();
+  if(q) arr = arr.filter(x=>normalize(x.w).includes(q) || (x.tr||"").includes(q) || (x.note||"").includes(q));
+  if(listFilter === "todo") arr = arr.filter(x=>!x.mastered);
+  else if(listFilter === "mastered") arr = arr.filter(x=>x.mastered);
+  arr.sort((a,b)=>b.t-a.t);
+  document.querySelectorAll("#list-chips .chip").forEach(c=>c.classList.toggle("on", c.dataset.f===listFilter));
+  const todo = words.filter(x=>!x.mastered).length;
+  $("list-stats").innerHTML = `共 <b>${words.length}</b> 词 · 待复习 <b>${todo}</b> · 已掌握 <b>${words.length-todo}</b>${q?` · 匹配 <b>${arr.length}</b>`:""}`;
+  if(!arr.length){
+    $("list-body").innerHTML = `<div class="emptystate"><div class="big">📚</div><p>${words.length?"没有符合条件的词":"词本是空的，去「收藏」里加几个生词吧"}</p></div>`;
+    return;
+  }
+  $("list-body").innerHTML = arr.map(x=>{
+    const ph = x.ph ? `<span class="ph">/${esc(x.ph)}/</span>` : "";
+    const tr = (x.tr||"").split("\n")[0];
+    const note = x.note ? `<div class="wtr note">📝 ${esc(x.note)}</div>` : "";
+    const tag = (x.tag||"").split(/\s+/).filter(Boolean).sort((a,b)=>(TAG_ORDER.indexOf(a)+99)-(TAG_ORDER.indexOf(b)+99))[0];
+    const d = new Date(x.t);
+    const date = `${d.getMonth()+1}/${d.getDate()}`;
+    return `<div class="wrow">
+      <button class="wspk" onclick="playRow(this,'${x.id}')">🔊</button>
+      <div class="wmain">
+        <div class="wen">${esc(x.w)}${ph}</div>
+        <div class="wtr">${tr?esc(tr):(x.note?"":"<i style='color:#bbb'>未收录释义</i>")}</div>
+        ${note}
+        <div class="wmeta">${tag?`<span class="badge">${esc(TAG_LABEL[tag]||tag)}</span>`:""}<span>${date}</span><span>${x.mastered?"✅已掌握":"🔁待复习"}</span></div>
+      </div>
+      <div class="wops">
+        <button class="done ${x.mastered?"on":""}" onclick="toggleMastered('${x.id}')">✓</button>
+        <button class="del" onclick="delWord('${x.id}')">✖</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+function playRow(btn, id){
+  const x = words.find(x=>x.id===id);
+  if(!x) return;
+  const was = btn.classList.contains("on");
+  document.querySelectorAll(".wspk.on").forEach(b=>b.classList.remove("on"));
+  if(was){ stopAudio(); return; }
+  btn.classList.add("on");
+  loopPlay(x.w);
+}
+function toggleMastered(id){
+  const x = words.find(x=>x.id===id);
+  if(!x) return;
+  x.mastered = !x.mastered;
+  if(x.mastered) x.due = Number.MAX_SAFE_INTEGER;
+  save(); render();
+}
+function delWord(id){
+  const x = words.find(x=>x.id===id);
+  if(!x) return;
+  if(!confirm("删除 "+x.w+" ？")) return;
+  words = words.filter(y=>y.id!==id);
+  save(); render();
+}
+function clearAll(){
+  if(!words.length) return;
+  if(confirm("确定清空全部 "+words.length+" 个单词？此操作不可恢复。")){
+    words = []; save(); render();
+  }
+}
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(words, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  const d = new Date();
+  a.href = URL.createObjectURL(blob);
+  a.download = `单词收集本-备份-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`;
+  a.click();
+  toast("已导出备份");
+}
+function importJSON(ev){
+  const f = ev.target.files[0];
+  if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    try{
+      const arr = JSON.parse(rd.result);
+      if(!Array.isArray(arr)) throw 0;
+      let added = 0;
+      const have = new Set(words.map(x=>normalize(x.w)));
+      arr.forEach(x=>{
+        if(x && x.w && !have.has(normalize(x.w))){
+          words.push({id:x.id||uid(), w:x.w, ph:x.ph||"", tr:x.tr||"", tag:x.tag||"", note:x.note||"", t:x.t||Date.now(), mastered:!!x.mastered, level:x.level||0, due:x.due||Date.now()});
+          have.add(normalize(x.w)); added++;
+        }
+      });
+      save(); render();
+      toast("导入完成，新增 "+added+" 词");
+    }catch(e){ toast("文件格式不对"); }
+  };
+  rd.readAsText(f);
+  ev.target.value = "";
+}
+
+// ---- 复习（简单间隔重复）----
+function buildReviewQueue(){
+  const now = Date.now();
+  reviewQueue = words.filter(x=>!x.mastered && x.due <= now).sort((a,b)=>a.due-b.due);
+  reviewIdx = 0; reviewDone = 0;
+}
+function renderReview(){
+  const now = Date.now();
+  const dueNow = words.filter(x=>!x.mastered && x.due<=now).length;
+  $("review-badge").textContent = dueNow;
+  if(reviewQueue.length === 0) buildReviewQueue();
+  const el = $("review-body");
+  if(!reviewQueue.length || reviewIdx >= reviewQueue.length){
+    $("review-stats").innerHTML = "";
+    el.innerHTML = `<div class="emptystate"><div class="big">🎉</div><p>${words.length?"当前没有待复习的词了！<br>过段时间再来，或去「词本」把还没掌握的词再听几遍。":"先去「收藏」里加几个生词吧"}</p></div>`;
+    stopAudio();
+    return;
+  }
+  const cur = reviewQueue[reviewIdx];
+  $("review-stats").innerHTML = `待复习 <b>${reviewQueue.length}</b> · 本次已过 <b>${reviewDone}</b> · 第 <b>${reviewIdx+1}</b> 个`;
+  const tr = (cur.tr||"").split("\n");
+  el.innerHTML = `<div class="review-card">
+    ${reviewRevealed ? `
+      <div class="word">${esc(cur.w)}</div>
+      ${cur.ph?`<div class="ph">/${esc(cur.ph)}/</div>`:""}
+      <div class="tr">${tr.map(l=>`<div class="line">${esc(l)}</div>`).join("")}${cur.note?`<div class="line note">📝 ${esc(cur.note)}</div>`:""}</div>`
+    : `<div class="spk">🔊</div><div class="status">正在循环朗读 · 听出来了吗？</div>`}
+    <div class="review-ops">
+      <button class="reveal" onclick="reviewReveal()">${reviewRevealed?"👀 已显示":"👀 显示释义"}</button>
+      <button class="rop-forgot" onclick="reviewAnswer('forgot')">✗ 忘了</button>
+      <button class="rop-again" onclick="reviewAnswer('again')">${audioOn?"🔇 暂停":"🔊 朗读"}</button>
+      <button class="rop-know" onclick="reviewAnswer('know')">✓ 记得</button>
+      <button class="rop-master" onclick="reviewAnswer('master')">✓✓ 掌握</button>
+    </div>
+  </div>`;
+  if(audioOn) loopPlay(cur.w);
+}
+function reviewReveal(){ reviewRevealed = true; renderReview(); }
+function reviewAnswer(act){
+  const cur = reviewQueue[reviewIdx];
+  if(!cur) return;
+  if(act === "again"){ toggleAudio(); return; }
+  if(act === "know"){
+    cur.level = Math.min(cur.level + 1, 5);
+    cur.due = Date.now() + INTERVAL[cur.level];
+  } else if(act === "forgot"){
+    cur.level = 0;
+    cur.due = Date.now();
+    reviewQueue.splice(reviewIdx, 1);   // 移走当前
+    reviewQueue.push(cur);              // 放队尾，本轮稍后再见
+  } else if(act === "master"){
+    cur.mastered = true;
+    cur.due = Number.MAX_SAFE_INTEGER;
+  }
+  save();
+  reviewDone++;
+  reviewRevealed = false;
+  if(act !== "forgot") reviewIdx++;
+  renderReview();
+}
+
+// ---- 切换 ----
+function setTab(t){
+  stopAudio();
+  tab = t;
+  ["add","list","review"].forEach(k=>{ $("v-"+k).style.display = (k===t)?"":"none"; });
+  document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
+  if(t === "list") renderList();
+  if(t === "review"){ reviewRevealed = false; buildReviewQueue(); renderReview(); }
+}
+function render(){
+  document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on", b.dataset.t===tab));
+  $("review-badge").textContent = words.filter(x=>!x.mastered && x.due<=Date.now()).length;
+  if(tab === "list") renderList();
+  else if(tab === "review") renderReview();
+}
+
+// ---- 设置 ----
+function openSettings(){
+  $("settings-mask").classList.add("show");
+  $("dict-info").textContent = "离线词典词条：" + (window.DICT_N||0) + "（ECDICT）";
+}
+function closeSettings(){ $("settings-mask").classList.remove("show"); }
+
+// ---- 分享直达 ----
+function handleShare(){
+  const q = new URLSearchParams(location.search);
+  let shared = q.get("text") || q.get("title") || "";
+  if(!shared) return;
+  // 分享来的可能是一句/一段，取第一个英文单词
+  const m = shared.trim().match(/[A-Za-z]+(?:['’-][A-Za-z]+)*/);
+  const w = m ? m[0] : shared.trim();
+  if(!w) return;
+  setTab("add");
+  $("cap-input").value = w;
+  doLookup();
+  toast("已从分享读入："+w);
+}
+
+// ---- 初始化 ----
+function toast(m){
+  let t = document.querySelector(".toast");
+  if(!t){ t = document.createElement("div"); t.className = "toast"; document.body.appendChild(t); }
+  t.textContent = m; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 1600);
+}
+if("speechSynthesis" in window){ speechSynthesis.onvoiceschanged = ()=>{}; speechSynthesis.getVoices(); }
+
+// PWA 安装提示
+if(/iPhone|iPad|iPod/i.test(navigator.userAgent) && !navigator.standalone){
+  const h = $("hintbar");
+  h.style.display = "";
+  h.innerHTML = "💡 加到主屏幕：用 Safari 打开 → 点分享 <b>⎋</b> →「添加到主屏幕」，就像 App 一样。";
+}
+window.addEventListener("beforeinstallprompt", e=>{
+  e.preventDefault();
+  deferredInstall = e;
+  const b = $("install-btn");
+  if(b) b.style.display = "";
+});
+function doInstall(){ if(deferredInstall){ deferredInstall.prompt(); deferredInstall = null; $("install-btn").style.display = "none"; } }
+
+// SW 注册
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
+}
+
+render();
+handleShare();
+</script>
+</body>
+</html>
