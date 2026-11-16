@@ -133,6 +133,20 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
 .frow .fops button{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:14px;cursor:pointer}
 .frow .fops .del{color:#c0392b}
 .wrow .wops .edit{color:var(--accent)}
+.wrow .wops .move{color:#0b7a3b}
+.wrow.sel{outline:2px solid var(--accent);background:#f5f3ff}
+.chk{flex:0 0 auto;width:28px;font-size:20px;display:flex;align-items:center;justify-content:center;align-self:center}
+.statrow{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 8px}
+.statrow .stats{margin:0}
+.mselect{flex:0 0 auto;padding:6px 12px;border-radius:16px;border:1px solid var(--line);background:#fff;color:#666;font-size:12px;cursor:pointer}
+.mselect.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.selbar{position:fixed;left:12px;right:12px;bottom:70px;z-index:40;display:none;align-items:center;gap:10px;background:#1a1a1a;color:#fff;padding:10px 14px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.selbar.show{display:flex}
+.selbar span{flex:1;font-size:13px}
+.selbar button{flex:0 0 auto;padding:9px 14px;border-radius:10px;border:none;font-size:13px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff}
+.movelist{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.movelist button{padding:12px;border-radius:11px;border:1px solid var(--line);background:#fff;font-size:14.5px;cursor:pointer;text-align:left;font-weight:600}
+.movelist button:active{background:#f5f3ff}
 </style>
 </head>
 <body>
@@ -176,7 +190,7 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
       <button class="chip" data-f="todo" onclick="setFilter('todo')">待复习</button>
       <button class="chip" data-f="mastered" onclick="setFilter('mastered')">已掌握</button>
     </div>
-    <div class="stats" id="list-stats"></div>
+    <div class="statrow"><div class="stats" id="list-stats"></div><button class="mselect" id="select-toggle" onclick="toggleSelect()">☑ 多选</button></div>
     <div id="list-body"></div>
     <div class="quick">
       <button onclick="exportJSON()">⬆ 导出备份</button>
@@ -191,6 +205,11 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
     <div id="review-body"></div>
   </div>
 </main>
+
+<div class="selbar" id="selbar">
+  <span id="selbar-info">已选 0 个</span>
+  <button onclick="openMoveSel()">📁 移动到…</button>
+</div>
 
 <nav class="tabbar">
   <button class="on" data-t="add" onclick="setTab('add')"><span class="ic">➕</span>收藏</button>
@@ -238,6 +257,13 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
     </div>
   </div>
 </div>
+<div class="mask" id="move-mask">
+  <div class="sheet">
+    <h3>📁 移动到文件夹</h3>
+    <div id="move-list"></div>
+    <div class="acts"><button class="cancel" onclick="closeMove()">取消</button></div>
+  </div>
+</div>
 <input type="file" id="import-file" accept=".json,application/json" onchange="importJSON(event)">
 
 <script src="dict.js"></script>
@@ -266,6 +292,9 @@ let curLookup = null;   // 当前查词结果
 let reviewQueue = [], reviewIdx = 0, reviewDone = 0, reviewRevealed = false;
 let deferredInstall = null;
 let editingId = null;
+let selectMode = false;
+let selected = new Set();
+let moveTargets = [];
 
 function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"[]"); }catch(e){ return []; } }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(words)); }
@@ -453,15 +482,23 @@ function renderList(){
     const tag = (x.tag||"").split(/\s+/).filter(Boolean).sort((a,b)=>(TAG_ORDER.indexOf(a)+99)-(TAG_ORDER.indexOf(b)+99))[0];
     const d = new Date(x.t);
     const date = `${d.getMonth()+1}/${d.getDate()}`;
+    const main = `<div class="wmain">
+      <div class="wen">${esc(x.w)}${ph}</div>
+      <div class="wtr">${tr?esc(tr):(x.note?"":"<i style='color:#bbb'>未收录释义</i>")}</div>
+      ${note}
+      <div class="wmeta">${tag?`<span class="badge">${esc(TAG_LABEL[tag]||tag)}</span>`:""}${(x.folder&&x.folder!=="默认")?`<span class="badge" style="background:#e6f7ef;color:#0b7a3b">${esc(x.folder)}</span>`:""}<span>${date}</span><span>${x.mastered?"✅已掌握":"🔁待复习"}</span></div>
+    </div>`;
+    if(selectMode){
+      return `<div class="wrow ${selected.has(x.id)?"sel":""}" data-id="${x.id}" onclick="toggleSel('${x.id}')">
+        <div class="chk">${selected.has(x.id)?"✅":"⬜"}</div>
+        ${main}
+      </div>`;
+    }
     return `<div class="wrow">
       <button class="wspk" onclick="playRow(this,'${x.id}')">🔊</button>
-      <div class="wmain">
-        <div class="wen">${esc(x.w)}${ph}</div>
-        <div class="wtr">${tr?esc(tr):(x.note?"":"<i style='color:#bbb'>未收录释义</i>")}</div>
-        ${note}
-        <div class="wmeta">${tag?`<span class="badge">${esc(TAG_LABEL[tag]||tag)}</span>`:""}${(x.folder&&x.folder!=="默认")?`<span class="badge" style="background:#e6f7ef;color:#0b7a3b">${esc(x.folder)}</span>`:""}<span>${date}</span><span>${x.mastered?"✅已掌握":"🔁待复习"}</span></div>
-      </div>
+      ${main}
       <div class="wops">
+        <button class="move" onclick="openMoveOne('${x.id}')">📁</button>
         <button class="edit" onclick="openEdit('${x.id}')">✏️</button>
         <button class="done ${x.mastered?"on":""}" onclick="toggleMastered('${x.id}')">✓</button>
         <button class="del" onclick="delWord('${x.id}')">✖</button>
@@ -580,6 +617,52 @@ function saveEdit(){
   toast("已保存");
 }
 
+// ---- 多选 + 移动 ----
+function toggleSelect(){
+  selectMode = !selectMode;
+  if(!selectMode) selected.clear();
+  const t = $("select-toggle");
+  if(t){ t.textContent = selectMode ? "✓ 完成" : "☑ 多选"; t.classList.toggle("on", selectMode); }
+  updateSelbar();
+  renderList();
+}
+function resetSelect(){
+  selectMode = false; selected.clear();
+  const t = $("select-toggle"); if(t){ t.textContent = "☑ 多选"; t.classList.remove("on"); }
+  const s = $("selbar"); if(s) s.classList.remove("show");
+}
+function updateSelbar(){
+  const s = $("selbar"); if(!s) return;
+  $("selbar-info").textContent = "已选 "+selected.size+" 个";
+  s.classList.toggle("show", selectMode);
+}
+function toggleSel(id){
+  if(selected.has(id)) selected.delete(id); else selected.add(id);
+  const row = document.querySelector(`.wrow[data-id="${id}"]`);
+  if(row){ row.classList.toggle("sel", selected.has(id)); const c = row.querySelector(".chk"); if(c) c.textContent = selected.has(id)?"✅":"⬜"; }
+  updateSelbar();
+}
+function openMoveOne(id){ moveTargets = [id]; renderMoveList(); $("move-mask").classList.add("show"); }
+function openMoveSel(){
+  if(!selected.size){ toast("先勾选要移动的单词"); return; }
+  moveTargets = [...selected]; renderMoveList(); $("move-mask").classList.add("show");
+}
+function closeMove(){ $("move-mask").classList.remove("show"); }
+function renderMoveList(){
+  $("move-list").innerHTML = `<div class="movelist">` + folders.map((f,i)=>`<button onclick="doMoveToIdx(${i})">📁 ${esc(f)}</button>`).join("") + `</div>`;
+}
+function doMoveToIdx(i){
+  const f = folders[i];
+  const n = moveTargets.length;
+  moveTargets.forEach(id=>{ const x = words.find(y=>y.id===id); if(x) x.folder = f; });
+  save();
+  closeMove();
+  if(selectMode){ selectMode = false; selected.clear(); const t = $("select-toggle"); if(t){ t.textContent = "☑ 多选"; t.classList.remove("on"); } const s = $("selbar"); if(s) s.classList.remove("show"); }
+  renderFolders(); render();
+  toast("已移动 "+n+" 词到「"+f+"」");
+  moveTargets = [];
+}
+
 function exportJSON(){
   const blob = new Blob([JSON.stringify(words, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
@@ -678,6 +761,7 @@ function reviewAnswer(act){
 // ---- 切换 ----
 function setTab(t){
   stopAudio();
+  resetSelect();
   if(tab === "list" && t !== "list") listScroll = window.scrollY;   // 离开词本前记住滚动位置
   tab = t;
   ["add","list","review"].forEach(k=>{ $("v-"+k).style.display = (k===t)?"":"none"; });
