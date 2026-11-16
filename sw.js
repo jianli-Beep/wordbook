@@ -1,15 +1,34 @@
-const CACHE = "wordbook-v1";
-const ASSETS = ["./", "./index.html", "./dict.js", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
+const CORE = "wordbook-core-v2";
+const DICT = "wordbook-dict-v1";
+const CORE_ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CORE).then(c => c.addAll(CORE_ASSETS)).then(() => self.skipWaiting())
   );
 });
+
 self.addEventListener("activate", e => {
-  e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())
-  );
+  e.waitUntil((async () => {
+    // 把旧的 dict.js（4.9MB）搬到长期缓存，避免更新 App 时重新下载
+    const dictUrl = new URL("./dict.js", self.location.href).href;
+    try {
+      const oldNames = await caches.keys();
+      for (const name of oldNames) {
+        if (name === CORE || name === DICT) continue;
+        const old = await caches.open(name);
+        const resp = await old.match(dictUrl);
+        if (resp) {
+          const d = await caches.open(DICT);
+          if (!(await d.match(dictUrl))) await d.put(dictUrl, resp);
+        }
+      }
+    } catch (err) {}
+    // 清理旧版本缓存
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => k !== CORE && k !== DICT).map(k => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", e => {
@@ -39,7 +58,8 @@ self.addEventListener("fetch", e => {
       const net = fetch(e.request).then(resp => {
         if (resp && resp.status === 200 && resp.type === "basic") {
           const clone = resp.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
+          const cacheName = url.pathname.endsWith("/dict.js") ? DICT : CORE;
+          caches.open(cacheName).then(c => c.put(e.request, clone));
         }
         return resp;
       }).catch(() => cached);

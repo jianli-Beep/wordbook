@@ -114,6 +114,25 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
 .sheet .acts .ok{background:var(--accent);color:#fff}
 .sheet .acts .cancel{background:#eee;color:#555}
 .sheet input[type=file]{display:none}
+.foldchips{display:flex;gap:7px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.foldchips::-webkit-scrollbar{display:none}
+.fchip{flex:0 0 auto;padding:7px 13px;border-radius:20px;border:1px solid var(--line);background:#fff;color:#666;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.fchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.fchip.add{color:var(--accent);border-style:dashed}
+.fchip.mgr{color:#999}
+.r-folder{display:flex;align-items:center;gap:8px;margin-top:10px}
+.r-folder label{font-size:12.5px;color:var(--sub);white-space:nowrap}
+.r-folder select{flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:14px;background:#fff;outline:none}
+.lbl{display:block;font-size:12.5px;color:var(--sub);margin:12px 0 6px}
+.sheet select,.sheet textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;outline:none;background:#faf9f7;font-family:inherit}
+.sheet textarea{min-height:88px;resize:vertical}
+.frow{display:flex;align-items:center;justify-content:space-between;padding:11px 4px;border-bottom:1px solid var(--line)}
+.frow .fname{font-size:14.5px;font-weight:600}
+.frow .fcnt{font-size:12px;color:var(--sub);font-weight:400;margin-left:6px}
+.frow .fops{display:flex;gap:8px}
+.frow .fops button{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:14px;cursor:pointer}
+.frow .fops .del{color:#c0392b}
+.wrow .wops .edit{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -151,6 +170,7 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
   <!-- 词本 -->
   <div id="v-list" style="display:none">
     <div class="search-row"><input id="list-search" placeholder="🔍 搜索词本…" oninput="renderList()"></div>
+    <div class="foldchips" id="list-folders"></div>
     <div class="chips" id="list-chips">
       <button class="chip on" data-f="all" onclick="setFilter('all')">全部</button>
       <button class="chip" data-f="todo" onclick="setFilter('todo')">待复习</button>
@@ -191,11 +211,40 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
     </div>
   </div>
 </div>
+
+<div class="mask" id="fld-mask">
+  <div class="sheet">
+    <h3>📁 管理文件夹</h3>
+    <div id="fld-list"></div>
+    <div class="acts">
+      <button class="ok" onclick="addFolder()">＋ 新建文件夹</button>
+      <button class="cancel" onclick="closeFolderMgr()">完成</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="edit-mask">
+  <div class="sheet">
+    <h3>✏️ 编辑单词</h3>
+    <div id="edit-head"></div>
+    <div class="r-tr" id="edit-ref" style="max-height:130px;overflow:auto;background:#faf9f7;border-radius:10px;padding:10px 12px;margin:10px 0 2px"></div>
+    <label class="lbl">📁 归类</label>
+    <select id="edit-folder"></select>
+    <label class="lbl">📝 笔记 / 短语（方便记忆）</label>
+    <textarea id="edit-note" placeholder="固定搭配、同义词、你看到它的那句话…"></textarea>
+    <div class="acts">
+      <button class="cancel" onclick="closeEdit()">取消</button>
+      <button class="ok" onclick="saveEdit()">保存</button>
+    </div>
+  </div>
+</div>
 <input type="file" id="import-file" accept=".json,application/json" onchange="importJSON(event)">
 
 <script src="dict.js"></script>
 <script>
 const LS_KEY = "wordbook_v1";
+const FLD_KEY = "wordbook_folders_v1";
+const SCROLL_KEY = "wordbook_scroll_v1";
 const TAG_LABEL = {zk:"中考", gk:"高考", cet4:"四级", cet6:"六级", ky:"考研", toefl:"托福", ielts:"雅思", gre:"GRE"};
 const TAG_ORDER = ["gre","toefl","ielts","ky","cet6","cet4","gk","zk"];
 const INTERVAL = [5*60*1000, 60*60*1000, 24*60*60*1000, 3*24*60*60*1000, 7*24*60*60*1000, 14*24*60*60*1000];
@@ -205,15 +254,26 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 
 // ---- 数据 ----
 let words = load();
+let folders = loadFolders();
+syncFolders();
 let tab = "add";
 let listFilter = "all";
+let folderFilter = "all";
+let lastFolder = "默认";
+let listScroll = loadScroll();
 let audioOn = true, loopGen = 0, spkToken = 0;
 let curLookup = null;   // 当前查词结果
 let reviewQueue = [], reviewIdx = 0, reviewDone = 0, reviewRevealed = false;
 let deferredInstall = null;
+let editingId = null;
 
 function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"[]"); }catch(e){ return []; } }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(words)); }
+function loadFolders(){ try{ const a = JSON.parse(localStorage.getItem(FLD_KEY)||'["默认"]'); if(!Array.isArray(a)) return ["默认"]; if(!a.includes("默认")) a.unshift("默认"); return a; }catch(e){ return ["默认"]; } }
+function saveFolders(){ localStorage.setItem(FLD_KEY, JSON.stringify(folders)); }
+function syncFolders(){ let changed=false; words.forEach(x=>{ const f=x.folder||"默认"; if(!folders.includes(f)){ folders.push(f); changed=true; } }); if(changed) saveFolders(); }
+function loadScroll(){ try{ const n=parseInt(localStorage.getItem(SCROLL_KEY),10); return isNaN(n)?0:n; }catch(e){ return 0; } }
+function saveScroll(){ try{ localStorage.setItem(SCROLL_KEY, String(listScroll)); }catch(e){} }
 
 // ---- TTS 循环朗读 ----
 function speak(text, onend){
@@ -303,6 +363,7 @@ function doLookup(){
     ${r.found ? `
       <div class="r-tr">${(r.tr||"").split("\n").map((l,i)=>`<div class="line">${esc(l)}</div>`).join("")}</div>`
       : `<div class="r-notfound">⚠️ 离线词典未收录该词，仍可收藏原词，之后自己补释义。</div>`}
+    <div class="r-folder"><label>📁 归类</label><select id="cap-folder">${folders.map(f=>`<option ${f===lastFolder?"selected":""}>${esc(f)}</option>`).join("")}</select></div>
     <div class="r-note"><input id="cap-note" placeholder="例句 / 备注（可选，如你看到它的那句话）" autocomplete="off"></div>
     <div class="r-actions">
       <button class="r-listen" onclick="toggleResultAudio()">${audioOn?"🔊 循环朗读":"🔇 已暂停"}</button>
@@ -336,11 +397,13 @@ function saveCur(){
     tr: curLookup.tr,
     tag: curLookup.tag,
     note: $("cap-note") ? $("cap-note").value.trim() : "",
+    folder: $("cap-folder") ? $("cap-folder").value : "默认",
     t: Date.now(),
     mastered: false,
     level: 0,
     due: Date.now()
   });
+  lastFolder = $("cap-folder") ? $("cap-folder").value : "默认";
   save();
   toast("已收藏 ✓  共 "+words.length+" 词");
   clearCap();
@@ -372,6 +435,7 @@ function renderList(){
   const q = normalize($("list-search").value);
   let arr = words.slice();
   if(q) arr = arr.filter(x=>normalize(x.w).includes(q) || (x.tr||"").includes(q) || (x.note||"").includes(q));
+  if(folderFilter !== "all") arr = arr.filter(x=>(x.folder||"默认")===folderFilter);
   if(listFilter === "todo") arr = arr.filter(x=>!x.mastered);
   else if(listFilter === "mastered") arr = arr.filter(x=>x.mastered);
   arr.sort((a,b)=>b.t-a.t);
@@ -395,9 +459,10 @@ function renderList(){
         <div class="wen">${esc(x.w)}${ph}</div>
         <div class="wtr">${tr?esc(tr):(x.note?"":"<i style='color:#bbb'>未收录释义</i>")}</div>
         ${note}
-        <div class="wmeta">${tag?`<span class="badge">${esc(TAG_LABEL[tag]||tag)}</span>`:""}<span>${date}</span><span>${x.mastered?"✅已掌握":"🔁待复习"}</span></div>
+        <div class="wmeta">${tag?`<span class="badge">${esc(TAG_LABEL[tag]||tag)}</span>`:""}${(x.folder&&x.folder!=="默认")?`<span class="badge" style="background:#e6f7ef;color:#0b7a3b">${esc(x.folder)}</span>`:""}<span>${date}</span><span>${x.mastered?"✅已掌握":"🔁待复习"}</span></div>
       </div>
       <div class="wops">
+        <button class="edit" onclick="openEdit('${x.id}')">✏️</button>
         <button class="done ${x.mastered?"on":""}" onclick="toggleMastered('${x.id}')">✓</button>
         <button class="del" onclick="delWord('${x.id}')">✖</button>
       </div>
@@ -433,6 +498,88 @@ function clearAll(){
     words = []; save(); render();
   }
 }
+
+// ---- 文件夹 ----
+function renderFolders(){
+  const chips = [];
+  chips.push(`<button class="fchip ${folderFilter==="all"?"on":""}" onclick="setFolderFilter('all')">全部</button>`);
+  folders.forEach((f,i)=>{
+    chips.push(`<button class="fchip ${folderFilter===f?"on":""}" onclick="setFolderFilterIdx(${i})">${esc(f)}</button>`);
+  });
+  chips.push(`<button class="fchip add" onclick="addFolder()">＋ 文件夹</button>`);
+  chips.push(`<button class="fchip mgr" onclick="openFolderMgr()">管理</button>`);
+  $("list-folders").innerHTML = chips.join("");
+}
+function setFolderFilter(v){ folderFilter = v; renderList(); }
+function setFolderFilterIdx(i){ folderFilter = folders[i]; renderList(); }
+function addFolder(){
+  const name = (prompt("新文件夹名字：")||"").trim();
+  if(!name) return;
+  if(folders.includes(name)){ toast("已经有这个文件夹了"); return; }
+  folders.push(name); saveFolders();
+  renderFolders();
+  if($("fld-mask").classList.contains("show")) renderFolderMgr();
+  render();
+  toast("已新建文件夹「"+name+"」");
+}
+function renameFolderIdx(i){
+  const old = folders[i];
+  if(old === "默认"){ toast("「默认」不能改名"); return; }
+  const name = (prompt("把「"+old+"」重命名为：", old)||"").trim();
+  if(!name || name === old) return;
+  if(folders.includes(name)){ toast("已经有这个文件夹了"); return; }
+  folders[i] = name;
+  words.forEach(x=>{ if((x.folder||"默认")===old) x.folder = name; });
+  if(folderFilter === old) folderFilter = name;
+  if(lastFolder === old) lastFolder = name;
+  save(); saveFolders(); renderFolders(); renderFolderMgr(); render();
+}
+function deleteFolderIdx(i){
+  const name = folders[i];
+  if(name === "默认") return;
+  const cnt = words.filter(x=>(x.folder||"默认")===name).length;
+  if(!confirm(`删除文件夹「${name}」？里面的 ${cnt} 个单词会移到「默认」，不会丢失。`)) return;
+  folders.splice(i,1);
+  words.forEach(x=>{ if((x.folder||"默认")===name) x.folder = "默认"; });
+  if(folderFilter === name) folderFilter = "all";
+  if(lastFolder === name) lastFolder = "默认";
+  save(); saveFolders(); renderFolders(); renderFolderMgr(); render();
+}
+function openFolderMgr(){ renderFolderMgr(); $("fld-mask").classList.add("show"); }
+function closeFolderMgr(){ $("fld-mask").classList.remove("show"); }
+function renderFolderMgr(){
+  $("fld-list").innerHTML = folders.map((f,i)=>{
+    const cnt = words.filter(x=>(x.folder||"默认")===f).length;
+    const isDefault = f === "默认";
+    return `<div class="frow">
+      <div class="fname">📁 ${esc(f)} <span class="fcnt">${cnt} 词</span></div>
+      <div class="fops">
+        ${isDefault?"":`<button class="del" onclick="deleteFolderIdx(${i})">🗑</button>`}
+        <button onclick="renameFolderIdx(${i})">✏️</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ---- 编辑单词 ----
+function openEdit(id){
+  const x = words.find(y=>y.id===id); if(!x) return;
+  editingId = id;
+  $("edit-head").innerHTML = `<div class="r-word" style="font-size:21px">${esc(x.w)}${x.ph?` <span style="font-family:Georgia,serif;color:#999;font-size:13px;font-weight:400">/${esc(x.ph)}/</span>`:""}</div>`;
+  $("edit-ref").innerHTML = (x.tr||"").split("\n").map(l=>`<div class="line">${esc(l)}</div>`).join("") || `<div class="line note">离线词典未收录释义</div>`;
+  $("edit-note").value = x.note || "";
+  $("edit-folder").innerHTML = folders.map(f=>`<option ${(x.folder||"默认")===f?"selected":""}>${esc(f)}</option>`).join("");
+  $("edit-mask").classList.add("show");
+}
+function closeEdit(){ $("edit-mask").classList.remove("show"); editingId = null; }
+function saveEdit(){
+  const x = words.find(y=>y.id===editingId); if(!x) return;
+  x.note = ($("edit-note").value||"").trim();
+  x.folder = $("edit-folder").value || "默认";
+  save(); render(); closeEdit();
+  toast("已保存");
+}
+
 function exportJSON(){
   const blob = new Blob([JSON.stringify(words, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
@@ -454,11 +601,12 @@ function importJSON(ev){
       const have = new Set(words.map(x=>normalize(x.w)));
       arr.forEach(x=>{
         if(x && x.w && !have.has(normalize(x.w))){
-          words.push({id:x.id||uid(), w:x.w, ph:x.ph||"", tr:x.tr||"", tag:x.tag||"", note:x.note||"", t:x.t||Date.now(), mastered:!!x.mastered, level:x.level||0, due:x.due||Date.now()});
+          words.push({id:x.id||uid(), w:x.w, ph:x.ph||"", tr:x.tr||"", tag:x.tag||"", note:x.note||"", folder:x.folder||"默认", t:x.t||Date.now(), mastered:!!x.mastered, level:x.level||0, due:x.due||Date.now()});
           have.add(normalize(x.w)); added++;
         }
       });
-      save(); render();
+      syncFolders();
+      save(); renderFolders(); render();
       toast("导入完成，新增 "+added+" 词");
     }catch(e){ toast("文件格式不对"); }
   };
@@ -530,10 +678,16 @@ function reviewAnswer(act){
 // ---- 切换 ----
 function setTab(t){
   stopAudio();
+  if(tab === "list" && t !== "list") listScroll = window.scrollY;   // 离开词本前记住滚动位置
   tab = t;
   ["add","list","review"].forEach(k=>{ $("v-"+k).style.display = (k===t)?"":"none"; });
   document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
-  if(t === "list") renderList();
+  if(t === "list"){
+    renderFolders(); renderList();
+    requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0, listScroll)));
+  } else if(t === "add" || t === "review"){
+    window.scrollTo(0, 0);
+  }
   if(t === "review"){ reviewRevealed = false; buildReviewQueue(); renderReview(); }
 }
 function render(){
@@ -593,7 +747,16 @@ if("serviceWorker" in navigator){
   window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
 }
 
+// 记住词本滚动位置（滑动时防抖保存，下次打开还回到这里）
+let scrollTimer = null;
+window.addEventListener("scroll", ()=>{
+  if(tab !== "list") return;
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(()=>{ listScroll = window.scrollY; saveScroll(); }, 250);
+});
+
 render();
+renderFolders();
 handleShare();
 </script>
 </body>
