@@ -1,4 +1,4 @@
-const CORE = "wordbook-core-v4";
+const CORE = "wordbook-core-v5";
 const DICT = "wordbook-dict-v1";
 const CORE_ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
