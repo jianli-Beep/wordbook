@@ -310,7 +310,6 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
 const LS_KEY = "wordbook_v1";
 const FLD_KEY = "wordbook_folders_v1";
 const SCROLL_KEY = "wordbook_scroll_v1";
-const SORT_KEY = "wordbook_sort_v1";
 const TAG_LABEL = {zk:"中考", gk:"高考", cet4:"四级", cet6:"六级", ky:"考研", toefl:"托福", ielts:"雅思", gre:"GRE"};
 const TAG_ORDER = ["gre","toefl","ielts","ky","cet6","cet4","gk","zk"];
 const INTERVAL = [5*60*1000, 60*60*1000, 24*60*60*1000, 3*24*60*60*1000, 7*24*60*60*1000, 14*24*60*60*1000];
@@ -335,7 +334,7 @@ let editingId = null;
 let selectMode = false;
 let selected = new Set();
 let moveTargets = [];
-let sortMode = loadSortMode();
+let sortEditing = false;
 let reviewMode = "listen";
 let reviewScope = "due";
 let rvFolder = "all";
@@ -351,7 +350,6 @@ function syncFolders(){ let changed=false; words.forEach(x=>{ const f=x.folder||
 function loadScrollPos(){ try{ const o = JSON.parse(localStorage.getItem(SCROLL_KEY)||"{}"); return (o && typeof o==="object") ? o : {}; }catch(e){ return {}; } }
 function saveScrollPos(){ try{ localStorage.setItem(SCROLL_KEY, JSON.stringify(scrollPos)); }catch(e){} }
 function restoreScroll(){ const y = scrollPos[folderFilter] || 0; requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0, y))); }
-function loadSortMode(){ try{ return localStorage.getItem(SORT_KEY)==="manual"?"manual":"time"; }catch(e){ return "time"; } }
 
 // ---- TTS 循环朗读 ----
 function speak(text, onend){
@@ -516,8 +514,7 @@ function renderList(){
   if(folderFilter !== "all") arr = arr.filter(x=>(x.folder||"默认")===folderFilter);
   if(listFilter === "todo") arr = arr.filter(x=>!x.mastered);
   else if(listFilter === "mastered") arr = arr.filter(x=>x.mastered);
-  if(sortMode === "manual") arr.sort((a,b)=>(a.ord??1e15)-(b.ord??1e15));
-  else arr.sort((a,b)=>b.t-a.t);
+  orderArr(arr);
   document.querySelectorAll("#list-chips .chip").forEach(c=>c.classList.toggle("on", c.dataset.f===listFilter));
   const todo = words.filter(x=>!x.mastered).length;
   $("list-stats").innerHTML = `共 <b>${words.length}</b> 词 · 待复习 <b>${todo}</b> · 已掌握 <b>${words.length-todo}</b>${q?` · 匹配 <b>${arr.length}</b>`:""}`;
@@ -538,7 +535,7 @@ function renderList(){
       ${note}
       <div class="wmeta">${tag?`<span class="badge">${esc(TAG_LABEL[tag]||tag)}</span>`:""}${(x.folder&&x.folder!=="默认")?`<span class="badge" style="background:#e6f7ef;color:#0b7a3b">${esc(x.folder)}</span>`:""}<span>${date}</span><span>${x.mastered?"✅已掌握":"🔁待复习"}</span></div>
     </div>`;
-    if(sortMode === "manual" && !selectMode){
+    if(sortEditing && !selectMode){
       return `<div class="wrow">
         <button class="wspk" onclick="playRow(this,'${x.id}')">🔊</button>
         ${main}
@@ -597,23 +594,24 @@ function clearAll(){
 }
 
 // ---- 手动排序 ----
+function orderArr(arr){
+  arr.sort((a,b)=>((a.ord??1e15)-(b.ord??1e15)) || (b.t-a.t));
+}
 function toggleSort(){
-  if(sortMode === "time"){
-    sortMode = "manual";
-    const sorted = [...words].sort((a,b)=>b.t-a.t);
-    if(!words.some(x=>x.ord!==undefined)){
-      sorted.forEach((x,i)=>{ x.ord = i; });
-    } else {
-      let max = words.reduce((m,x)=>Math.max(m, x.ord??-1), -1);
-      sorted.forEach(x=>{ if(x.ord===undefined) x.ord = ++max; });
-    }
-    save();
-  } else {
-    sortMode = "time";
-  }
-  localStorage.setItem(SORT_KEY, sortMode);
+  sortEditing = !sortEditing;
+  if(sortEditing) ensureOrd();
   syncSortUI();
-  renderFolders(); renderList();
+  renderList();
+}
+function ensureOrd(){
+  const sorted = [...words].sort((a,b)=>b.t-a.t);
+  if(!words.some(x=>x.ord!==undefined)){
+    sorted.forEach((x,i)=>{ x.ord = i; });
+  } else {
+    let max = words.reduce((m,x)=>Math.max(m, x.ord??-1), -1);
+    sorted.forEach(x=>{ if(x.ord===undefined) x.ord = ++max; });
+  }
+  save();
 }
 function moveRow(id, dir){
   const q = normalize($("list-search").value);
@@ -622,7 +620,7 @@ function moveRow(id, dir){
   if(folderFilter !== "all") arr = arr.filter(x=>(x.folder||"默认")===folderFilter);
   if(listFilter === "todo") arr = arr.filter(x=>!x.mastered);
   else if(listFilter === "mastered") arr = arr.filter(x=>x.mastered);
-  arr.sort((a,b)=>(a.ord??1e15)-(b.ord??1e15));
+  orderArr(arr);
   const idx = arr.findIndex(x=>x.id===id);
   const j = idx + dir;
   if(idx < 0 || j < 0 || j >= arr.length) return;
@@ -633,15 +631,14 @@ function moveRow(id, dir){
 function resetOrder(){
   if(!confirm("恢复按收藏时间排序？手动顺序会清除。")) return;
   words.forEach(x=>{ delete x.ord; });
-  sortMode = "time";
-  localStorage.setItem(SORT_KEY, "time");
+  sortEditing = false;
   save(); syncSortUI(); render();
 }
 function syncSortUI(){
   const b = $("sort-toggle");
-  if(b){ b.textContent = sortMode==="manual" ? "✓ 完成" : "↕ 排序"; b.classList.toggle("on", sortMode==="manual"); }
+  if(b){ b.textContent = sortEditing ? "✓ 完成" : "↕ 排序"; b.classList.toggle("on", sortEditing); }
   const h = $("sort-hint");
-  if(h) h.innerHTML = sortMode==="manual"
+  if(h) h.innerHTML = sortEditing
     ? `<div class="sortbar"><span>↕ 手动排序中：点 ↑↓ 调整位置</span><button onclick="resetOrder()">🔄 恢复默认顺序</button></div>`
     : "";
 }
@@ -738,7 +735,7 @@ function saveEdit(){
 
 // ---- 多选 + 移动 ----
 function toggleSelect(){
-  if(sortMode === "manual"){ sortMode = "time"; localStorage.setItem(SORT_KEY, "time"); syncSortUI(); }
+  if(sortEditing){ sortEditing = false; syncSortUI(); }
   selectMode = !selectMode;
   if(!selectMode) selected.clear();
   const t = $("select-toggle");
@@ -824,8 +821,7 @@ function buildReviewQueue(){
   if(reviewScope === "range"){
     let pool = words.slice();
     if(rvFolder !== "all") pool = pool.filter(x=>(x.folder||"默认")===rvFolder);
-    if(sortMode === "manual") pool.sort((a,b)=>(a.ord??1e15)-(b.ord??1e15));
-    else pool.sort((a,b)=>b.t-a.t);
+    orderArr(pool);
     if(rvFrom > 0 || rvTo > 0){
       const s = (rvFrom>0?rvFrom:1) - 1;
       const e = rvTo>0?rvTo:pool.length;
