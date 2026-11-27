@@ -57,7 +57,8 @@ main{padding:12px 12px 20px;max-width:560px;margin:0 auto}
 .r-note input:focus{border-color:var(--accent)}
 .r-notfound{color:#b02a2a;font-size:13px;margin:6px 0}
 .sec-title{font-size:13px;color:var(--sub);margin:16px 2px 8px;font-weight:600}
-.search-row{display:flex;gap:8px;margin-bottom:10px;position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0;margin-top:-10px}
+.sticky-top{position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0 0;margin-top:-10px}
+.search-row{display:flex;gap:8px;margin-bottom:8px}
 .search-row input{flex:1;border:1px solid var(--line);border-radius:11px;padding:11px 13px;font-size:15px;outline:none;background:#fff}
 .chips{display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap}
 .chip{flex:1;padding:8px 6px;border-radius:20px;border:1px solid var(--line);background:#fff;color:#666;font-size:12.5px;cursor:pointer;white-space:nowrap;text-align:center}
@@ -199,8 +200,10 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
 
   <!-- 词本 -->
   <div id="v-list" style="display:none">
-    <div class="search-row"><input id="list-search" placeholder="🔍 搜索词本…" oninput="renderList()"></div>
-    <div class="foldchips" id="list-folders"></div>
+    <div class="sticky-top">
+      <div class="search-row"><input id="list-search" placeholder="🔍 搜索词本…" oninput="renderList()"></div>
+      <div class="foldchips" id="list-folders"></div>
+    </div>
     <div class="chips" id="list-chips">
       <button class="chip on" data-f="all" onclick="setFilter('all')">全部</button>
       <button class="chip" data-f="todo" onclick="setFilter('todo')">待复习</button>
@@ -323,7 +326,7 @@ let tab = "add";
 let listFilter = "all";
 let folderFilter = "all";
 let lastFolder = "默认";
-let listScroll = loadScroll();
+let scrollPos = loadScrollPos();
 let audioOn = true, loopGen = 0, spkToken = 0;
 let curLookup = null;   // 当前查词结果
 let reviewQueue = [], reviewIdx = 0, reviewDone = 0, reviewRevealed = false;
@@ -345,8 +348,9 @@ function save(){ localStorage.setItem(LS_KEY, JSON.stringify(words)); }
 function loadFolders(){ try{ const a = JSON.parse(localStorage.getItem(FLD_KEY)||'["默认"]'); if(!Array.isArray(a)) return ["默认"]; if(!a.includes("默认")) a.unshift("默认"); return a; }catch(e){ return ["默认"]; } }
 function saveFolders(){ localStorage.setItem(FLD_KEY, JSON.stringify(folders)); }
 function syncFolders(){ let changed=false; words.forEach(x=>{ const f=x.folder||"默认"; if(!folders.includes(f)){ folders.push(f); changed=true; } }); if(changed) saveFolders(); }
-function loadScroll(){ try{ const n=parseInt(localStorage.getItem(SCROLL_KEY),10); return isNaN(n)?0:n; }catch(e){ return 0; } }
-function saveScroll(){ try{ localStorage.setItem(SCROLL_KEY, String(listScroll)); }catch(e){} }
+function loadScrollPos(){ try{ const o = JSON.parse(localStorage.getItem(SCROLL_KEY)||"{}"); return (o && typeof o==="object") ? o : {}; }catch(e){ return {}; } }
+function saveScrollPos(){ try{ localStorage.setItem(SCROLL_KEY, JSON.stringify(scrollPos)); }catch(e){} }
+function restoreScroll(){ const y = scrollPos[folderFilter] || 0; requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0, y))); }
 function loadSortMode(){ try{ return localStorage.getItem(SORT_KEY)==="manual"?"manual":"time"; }catch(e){ return "time"; } }
 
 // ---- TTS 循环朗读 ----
@@ -653,8 +657,17 @@ function renderFolders(){
   chips.push(`<button class="fchip mgr" onclick="openFolderMgr()">管理</button>`);
   $("list-folders").innerHTML = chips.join("");
 }
-function setFolderFilter(v){ if(sortMode==="manual") return; folderFilter = v; renderList(); }
-function setFolderFilterIdx(i){ if(sortMode==="manual") return; folderFilter = folders[i]; renderList(); }
+function setFolderFilter(v){
+  if(sortMode==="manual") return;
+  if(v !== folderFilter){ scrollPos[folderFilter] = window.scrollY; saveScrollPos(); folderFilter = v; renderList(); restoreScroll(); }
+  else renderList();
+}
+function setFolderFilterIdx(i){
+  if(sortMode==="manual") return;
+  const v = folders[i];
+  if(v !== folderFilter){ scrollPos[folderFilter] = window.scrollY; saveScrollPos(); folderFilter = v; renderList(); restoreScroll(); }
+  else renderList();
+}
 function addFolder(){
   const name = (prompt("新文件夹名字：")||"").trim();
   if(!name) return;
@@ -955,13 +968,13 @@ function reviewAnswer(act){
 function setTab(t){
   stopAudio();
   resetSelect();
-  if(tab === "list" && t !== "list") listScroll = window.scrollY;   // 离开词本前记住滚动位置
+  if(tab === "list" && t !== "list"){ scrollPos[folderFilter] = window.scrollY; saveScrollPos(); }   // 离开词本前记住当前文件夹位置
   tab = t;
   ["add","list","review"].forEach(k=>{ $("v-"+k).style.display = (k===t)?"":"none"; });
   document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
   if(t === "list"){
     renderFolders(); renderList();
-    requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0, listScroll)));
+    restoreScroll();
   } else if(t === "add" || t === "review"){
     window.scrollTo(0, 0);
   }
@@ -1030,7 +1043,7 @@ let scrollTimer = null;
 window.addEventListener("scroll", ()=>{
   if(tab !== "list") return;
   clearTimeout(scrollTimer);
-  scrollTimer = setTimeout(()=>{ listScroll = window.scrollY; saveScroll(); }, 250);
+  scrollTimer = setTimeout(()=>{ scrollPos[folderFilter] = window.scrollY; saveScrollPos(); }, 250);
 });
 
 render();
