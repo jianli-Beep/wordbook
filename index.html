@@ -57,7 +57,7 @@ main{padding:12px 12px 20px;max-width:560px;margin:0 auto}
 .r-note input:focus{border-color:var(--accent)}
 .r-notfound{color:#b02a2a;font-size:13px;margin:6px 0}
 .sec-title{font-size:13px;color:var(--sub);margin:16px 2px 8px;font-weight:600}
-.search-row{display:flex;gap:8px;margin-bottom:10px}
+.search-row{display:flex;gap:8px;margin-bottom:10px;position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0;margin-top:-10px}
 .search-row input{flex:1;border:1px solid var(--line);border-radius:11px;padding:11px 13px;font-size:15px;outline:none;background:#fff}
 .chips{display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap}
 .chip{flex:1;padding:8px 6px;border-radius:20px;border:1px solid var(--line);background:#fff;color:#666;font-size:12.5px;cursor:pointer;white-space:nowrap;text-align:center}
@@ -147,6 +147,20 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
 .movelist{display:flex;flex-direction:column;gap:8px;margin:12px 0}
 .movelist button{padding:12px;border-radius:11px;border:1px solid var(--line);background:#fff;font-size:14.5px;cursor:pointer;text-align:left;font-weight:600}
 .movelist button:active{background:#f5f3ff}
+.statbtns{display:flex;gap:6px;flex:0 0 auto}
+.sortbar{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fdf6e3;color:#8a6d1a;border:1px solid #f3e2ac;border-radius:10px;padding:8px 12px;font-size:12px;margin-bottom:10px}
+.sortbar button{flex:0 0 auto;border:1px solid #e0c86a;background:#fff;color:#8a6d1a;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+.wrow .wops .up,.wrow .wops .down{color:var(--accent)}
+.rv-config{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border-radius:11px;padding:9px 11px;margin-bottom:8px;font-size:13px;color:var(--sub);box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.rv-config select{flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;padding:7px 8px;font-size:13px;background:#fff;outline:none;color:var(--ink)}
+.rv-range{display:flex;align-items:center;gap:4px}
+.rv-range input{width:54px;border:1px solid var(--line);border-radius:8px;padding:6px 5px;font-size:13px;text-align:center;outline:none;background:#fff}
+.rv-rand{display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer}
+.spell-input{width:100%;margin-top:14px;border:2px solid var(--accent);border-radius:11px;padding:13px 14px;font-size:18px;text-align:center;outline:none;background:#fff}
+.review-card .prompt{margin-top:12px;font-size:15px;color:#3a3a3a;line-height:1.7;text-align:left;border-top:1px solid var(--line);padding-top:12px}
+.review-card .verdict{font-size:17px;font-weight:800;margin-bottom:4px}
+.review-card .verdict.ok{color:var(--ok)}
+.review-card .verdict.bad{color:var(--bad)}
 </style>
 </head>
 <body>
@@ -190,7 +204,14 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
       <button class="chip" data-f="todo" onclick="setFilter('todo')">待复习</button>
       <button class="chip" data-f="mastered" onclick="setFilter('mastered')">已掌握</button>
     </div>
-    <div class="statrow"><div class="stats" id="list-stats"></div><button class="mselect" id="select-toggle" onclick="toggleSelect()">☑ 多选</button></div>
+    <div class="statrow">
+      <div class="stats" id="list-stats"></div>
+      <div class="statbtns">
+        <button class="mselect" id="sort-toggle" onclick="toggleSort()">↕ 排序</button>
+        <button class="mselect" id="select-toggle" onclick="toggleSelect()">☑ 多选</button>
+      </div>
+    </div>
+    <div id="sort-hint" style="display:none"></div>
     <div id="list-body"></div>
     <div class="quick">
       <button onclick="exportJSON()">⬆ 导出备份</button>
@@ -201,6 +222,19 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
 
   <!-- 复习 -->
   <div id="v-review" style="display:none">
+    <div class="chips" id="review-mode-chips">
+      <button class="chip on" data-m="listen" onclick="setReviewMode('listen')">👂 听音识词</button>
+      <button class="chip" data-m="spell" onclick="setReviewMode('spell')">✍️ 听写拼写</button>
+    </div>
+    <div class="chips" id="review-scope-chips">
+      <button class="chip on" data-s="due" onclick="setReviewScope('due')">🔁 到期复习</button>
+      <button class="chip" data-s="range" onclick="setReviewScope('range')">🎯 范围练习</button>
+    </div>
+    <div class="rv-config" id="rv-config" style="display:none">
+      <select id="rv-folder" onchange="onRvFolderChange()"></select>
+      <div class="rv-range"><span>第</span><input type="number" id="rv-from" min="1" placeholder="1" onchange="onRvFrom()"><span>–</span><input type="number" id="rv-to" min="1" placeholder="末" onchange="onRvTo()"><span>个</span></div>
+      <label class="rv-rand"><input type="checkbox" id="rv-random" onchange="onRvRandom()"> 随机</label>
+    </div>
     <div class="stats" id="review-stats"></div>
     <div id="review-body"></div>
   </div>
@@ -271,6 +305,7 @@ nav.tabbar button.on .bd{background:var(--accent);color:#fff}
 const LS_KEY = "wordbook_v1";
 const FLD_KEY = "wordbook_folders_v1";
 const SCROLL_KEY = "wordbook_scroll_v1";
+const SORT_KEY = "wordbook_sort_v1";
 const TAG_LABEL = {zk:"中考", gk:"高考", cet4:"四级", cet6:"六级", ky:"考研", toefl:"托福", ielts:"雅思", gre:"GRE"};
 const TAG_ORDER = ["gre","toefl","ielts","ky","cet6","cet4","gk","zk"];
 const INTERVAL = [5*60*1000, 60*60*1000, 24*60*60*1000, 3*24*60*60*1000, 7*24*60*60*1000, 14*24*60*60*1000];
@@ -295,6 +330,13 @@ let editingId = null;
 let selectMode = false;
 let selected = new Set();
 let moveTargets = [];
+let sortMode = loadSortMode();
+let reviewMode = "listen";
+let reviewScope = "due";
+let rvFolder = "all";
+let rvFrom = 0, rvTo = 0;
+let rvRandom = false;
+let spellChecked = false, spellCorrect = false;
 
 function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"[]"); }catch(e){ return []; } }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(words)); }
@@ -303,6 +345,7 @@ function saveFolders(){ localStorage.setItem(FLD_KEY, JSON.stringify(folders)); 
 function syncFolders(){ let changed=false; words.forEach(x=>{ const f=x.folder||"默认"; if(!folders.includes(f)){ folders.push(f); changed=true; } }); if(changed) saveFolders(); }
 function loadScroll(){ try{ const n=parseInt(localStorage.getItem(SCROLL_KEY),10); return isNaN(n)?0:n; }catch(e){ return 0; } }
 function saveScroll(){ try{ localStorage.setItem(SCROLL_KEY, String(listScroll)); }catch(e){} }
+function loadSortMode(){ try{ return localStorage.getItem(SORT_KEY)==="manual"?"manual":"time"; }catch(e){ return "time"; } }
 
 // ---- TTS 循环朗读 ----
 function speak(text, onend){
@@ -459,7 +502,7 @@ async function pasteClip(){
 }
 
 // ---- 词本 ----
-function setFilter(f){ listFilter = f; renderList(); }
+function setFilter(f){ if(sortMode==="manual") return; listFilter = f; renderList(); }
 function renderList(){
   const q = normalize($("list-search").value);
   let arr = words.slice();
@@ -467,7 +510,8 @@ function renderList(){
   if(folderFilter !== "all") arr = arr.filter(x=>(x.folder||"默认")===folderFilter);
   if(listFilter === "todo") arr = arr.filter(x=>!x.mastered);
   else if(listFilter === "mastered") arr = arr.filter(x=>x.mastered);
-  arr.sort((a,b)=>b.t-a.t);
+  if(sortMode === "manual") arr.sort((a,b)=>(a.ord??1e15)-(b.ord??1e15));
+  else arr.sort((a,b)=>b.t-a.t);
   document.querySelectorAll("#list-chips .chip").forEach(c=>c.classList.toggle("on", c.dataset.f===listFilter));
   const todo = words.filter(x=>!x.mastered).length;
   $("list-stats").innerHTML = `共 <b>${words.length}</b> 词 · 待复习 <b>${todo}</b> · 已掌握 <b>${words.length-todo}</b>${q?` · 匹配 <b>${arr.length}</b>`:""}`;
@@ -488,6 +532,16 @@ function renderList(){
       ${note}
       <div class="wmeta">${tag?`<span class="badge">${esc(TAG_LABEL[tag]||tag)}</span>`:""}${(x.folder&&x.folder!=="默认")?`<span class="badge" style="background:#e6f7ef;color:#0b7a3b">${esc(x.folder)}</span>`:""}<span>${date}</span><span>${x.mastered?"✅已掌握":"🔁待复习"}</span></div>
     </div>`;
+    if(sortMode === "manual" && !selectMode){
+      return `<div class="wrow">
+        <button class="wspk" onclick="playRow(this,'${x.id}')">🔊</button>
+        ${main}
+        <div class="wops">
+          <button class="up" onclick="moveRow('${x.id}',-1)">↑</button>
+          <button class="down" onclick="moveRow('${x.id}',1)">↓</button>
+        </div>
+      </div>`;
+    }
     if(selectMode){
       return `<div class="wrow ${selected.has(x.id)?"sel":""}" data-id="${x.id}" onclick="toggleSel('${x.id}')">
         <div class="chk">${selected.has(x.id)?"✅":"⬜"}</div>
@@ -536,6 +590,54 @@ function clearAll(){
   }
 }
 
+// ---- 手动排序 ----
+function toggleSort(){
+  if(sortMode === "time"){
+    sortMode = "manual";
+    folderFilter = "all"; listFilter = "all";
+    const s = $("list-search"); if(s) s.value = "";
+    const sorted = [...words].sort((a,b)=>b.t-a.t);
+    if(!words.some(x=>x.ord!==undefined)){
+      sorted.forEach((x,i)=>{ x.ord = i; });
+    } else {
+      let max = words.reduce((m,x)=>Math.max(m, x.ord??-1), -1);
+      sorted.forEach(x=>{ if(x.ord===undefined) x.ord = ++max; });
+    }
+    save();
+  } else {
+    sortMode = "time";
+  }
+  localStorage.setItem(SORT_KEY, sortMode);
+  syncSortUI();
+  renderFolders(); renderList();
+}
+function moveRow(id, dir){
+  const arr = [...words].sort((a,b)=>(a.ord??1e15)-(b.ord??1e15));
+  const idx = arr.findIndex(x=>x.id===id);
+  const j = idx + dir;
+  if(idx < 0 || j < 0 || j >= arr.length) return;
+  const a = arr[idx], b = arr[j];
+  const tmp = a.ord; a.ord = b.ord; b.ord = tmp;
+  save(); renderList();
+}
+function resetOrder(){
+  if(!confirm("恢复按收藏时间排序？手动顺序会清除。")) return;
+  words.forEach(x=>{ delete x.ord; });
+  sortMode = "time";
+  localStorage.setItem(SORT_KEY, "time");
+  save(); syncSortUI(); render();
+}
+function syncSortUI(){
+  const b = $("sort-toggle");
+  if(b){ b.textContent = sortMode==="manual" ? "✓ 完成" : "↕ 排序"; b.classList.toggle("on", sortMode==="manual"); }
+  const h = $("sort-hint");
+  if(h) h.innerHTML = sortMode==="manual"
+    ? `<div class="sortbar"><span>↕ 手动排序中：点 ↑↓ 调整位置</span><button onclick="resetOrder()">🔄 恢复默认顺序</button></div>`
+    : "";
+  const si = $("list-search");
+  if(si){ si.disabled = (sortMode==="manual"); si.placeholder = sortMode==="manual" ? "排序模式（点 ↑↓ 调整位置）" : "🔍 搜索词本…"; }
+}
+
 // ---- 文件夹 ----
 function renderFolders(){
   const chips = [];
@@ -547,8 +649,8 @@ function renderFolders(){
   chips.push(`<button class="fchip mgr" onclick="openFolderMgr()">管理</button>`);
   $("list-folders").innerHTML = chips.join("");
 }
-function setFolderFilter(v){ folderFilter = v; renderList(); }
-function setFolderFilterIdx(i){ folderFilter = folders[i]; renderList(); }
+function setFolderFilter(v){ if(sortMode==="manual") return; folderFilter = v; renderList(); }
+function setFolderFilterIdx(i){ if(sortMode==="manual") return; folderFilter = folders[i]; renderList(); }
 function addFolder(){
   const name = (prompt("新文件夹名字：")||"").trim();
   if(!name) return;
@@ -619,6 +721,7 @@ function saveEdit(){
 
 // ---- 多选 + 移动 ----
 function toggleSelect(){
+  if(sortMode === "manual"){ sortMode = "time"; localStorage.setItem(SORT_KEY, "time"); syncSortUI(); }
   selectMode = !selectMode;
   if(!selectMode) selected.clear();
   const t = $("select-toggle");
@@ -684,7 +787,7 @@ function importJSON(ev){
       const have = new Set(words.map(x=>normalize(x.w)));
       arr.forEach(x=>{
         if(x && x.w && !have.has(normalize(x.w))){
-          words.push({id:x.id||uid(), w:x.w, ph:x.ph||"", tr:x.tr||"", tag:x.tag||"", note:x.note||"", folder:x.folder||"默认", t:x.t||Date.now(), mastered:!!x.mastered, level:x.level||0, due:x.due||Date.now()});
+          words.push({id:x.id||uid(), w:x.w, ph:x.ph||"", tr:x.tr||"", tag:x.tag||"", note:x.note||"", folder:x.folder||"默认", t:x.t||Date.now(), mastered:!!x.mastered, level:x.level||0, due:x.due||Date.now(), ord:x.ord});
           have.add(normalize(x.w)); added++;
         }
       });
@@ -697,27 +800,111 @@ function importJSON(ev){
   ev.target.value = "";
 }
 
-// ---- 复习（简单间隔重复）----
+// ---- 复习（听音识词/听写 + 到期复习/范围练习）----
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function buildReviewQueue(){
-  const now = Date.now();
-  reviewQueue = words.filter(x=>!x.mastered && x.due <= now).sort((a,b)=>a.due-b.due);
-  reviewIdx = 0; reviewDone = 0;
+  reviewIdx = 0; reviewDone = 0; reviewRevealed = false; spellChecked = false; spellCorrect = false;
+  if(reviewScope === "range"){
+    let pool = words.slice();
+    if(rvFolder !== "all") pool = pool.filter(x=>(x.folder||"默认")===rvFolder);
+    if(sortMode === "manual") pool.sort((a,b)=>(a.ord??1e15)-(b.ord??1e15));
+    else pool.sort((a,b)=>b.t-a.t);
+    if(rvFrom > 0 || rvTo > 0){
+      const s = (rvFrom>0?rvFrom:1) - 1;
+      const e = rvTo>0?rvTo:pool.length;
+      pool = pool.slice(s, e);
+    }
+    if(rvRandom) shuffle(pool);
+    reviewQueue = pool;
+  } else {
+    const now = Date.now();
+    reviewQueue = words.filter(x=>!x.mastered && x.due <= now).sort((a,b)=>a.due-b.due);
+  }
+}
+function setReviewMode(m){
+  reviewMode = m;
+  spellChecked = false; spellCorrect = false;
+  document.querySelectorAll("#review-mode-chips .chip").forEach(c=>c.classList.toggle("on", c.dataset.m===m));
+  stopAudio(); renderReview();
+}
+function setReviewScope(s){
+  reviewScope = s;
+  document.querySelectorAll("#review-scope-chips .chip").forEach(c=>c.classList.toggle("on", c.dataset.s===s));
+  $("rv-config").style.display = (s==="range")?"":"none";
+  buildReviewQueue(); renderReview();
+}
+function renderRvFolder(){
+  const sel = $("rv-folder"); if(!sel) return;
+  let html = `<option value="all">全部文件夹</option>`;
+  folders.forEach((f,i)=>{ html += `<option value="${i+1}" ${rvFolder===f?"selected":""}>${esc(f)}</option>`; });
+  sel.innerHTML = html;
+}
+function onRvFolderChange(){ const v = $("rv-folder").value; rvFolder = v==="all"?"all":folders[parseInt(v,10)-1]; buildReviewQueue(); renderReview(); }
+function onRvFrom(){ rvFrom = parseInt($("rv-from").value,10)||0; buildReviewQueue(); renderReview(); }
+function onRvTo(){ rvTo = parseInt($("rv-to").value,10)||0; buildReviewQueue(); renderReview(); }
+function onRvRandom(){ rvRandom = $("rv-random").checked; buildReviewQueue(); renderReview(); }
+function replaySpell(){ const cur = reviewQueue[reviewIdx]; if(cur) loopPlay(cur.w); }
+function spellCheck(){
+  const cur = reviewQueue[reviewIdx]; if(!cur) return;
+  const inp = $("spell-input");
+  const ans = (inp?inp.value:"").trim().toLowerCase();
+  spellCorrect = ans === (cur.w||"").toLowerCase();
+  spellChecked = true;
+  stopAudio(); renderReview();
 }
 function renderReview(){
   const now = Date.now();
-  const dueNow = words.filter(x=>!x.mastered && x.due<=now).length;
-  $("review-badge").textContent = dueNow;
+  $("review-badge").textContent = words.filter(x=>!x.mastered && x.due<=now).length;
+  document.querySelectorAll("#review-mode-chips .chip").forEach(c=>c.classList.toggle("on", c.dataset.m===reviewMode));
+  document.querySelectorAll("#review-scope-chips .chip").forEach(c=>c.classList.toggle("on", c.dataset.s===reviewScope));
+  $("rv-config").style.display = reviewScope==="range"?"":"none";
+  renderRvFolder();
   if(reviewQueue.length === 0) buildReviewQueue();
   const el = $("review-body");
   if(!reviewQueue.length || reviewIdx >= reviewQueue.length){
     $("review-stats").innerHTML = "";
-    el.innerHTML = `<div class="emptystate"><div class="big">🎉</div><p>${words.length?"当前没有待复习的词了！<br>过段时间再来，或去「词本」把还没掌握的词再听几遍。":"先去「收藏」里加几个生词吧"}</p></div>`;
+    const emptyMsg = reviewScope==="range" ? "这个范围里没有词" : "当前没有待复习的词了！<br>过段时间再来，或去「词本」把还没掌握的词再听几遍。";
+    el.innerHTML = `<div class="emptystate"><div class="big">🎉</div><p>${words.length?emptyMsg:"先去「收藏」里加几个生词吧"}</p></div>`;
     stopAudio();
     return;
   }
   const cur = reviewQueue[reviewIdx];
-  $("review-stats").innerHTML = `待复习 <b>${reviewQueue.length}</b> · 本次已过 <b>${reviewDone}</b> · 第 <b>${reviewIdx+1}</b> 个`;
+  const groupLabel = reviewScope==="range"?"本组":"待复习";
+  $("review-stats").innerHTML = `${groupLabel} <b>${reviewQueue.length}</b> · 本次已过 <b>${reviewDone}</b> · 第 <b>${reviewIdx+1}</b> 个`;
   const tr = (cur.tr||"").split("\n");
+
+  // 听写模式
+  if(reviewMode === "spell"){
+    if(!spellChecked){
+      el.innerHTML = `<div class="review-card">
+        <div class="spk" onclick="replaySpell()">🔊</div>
+        <div class="status">听发音，写出对应单词</div>
+        <div class="prompt">${tr.map(l=>`<div class="line">${esc(l)}</div>`).join("") || `<div class="line note">（未收录释义，凭发音拼写）</div>`}</div>
+        <input id="spell-input" class="spell-input" placeholder="输入英文单词…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <div class="review-ops">
+          <button class="reveal" onclick="spellCheck()">✓ 检查</button>
+          <button class="rop-again" onclick="replaySpell()">🔊 再听</button>
+          <button class="rop-forgot" onclick="reviewAnswer('forgot')">✗ 跳过</button>
+        </div>
+      </div>`;
+      if(audioOn) loopPlay(cur.w);
+    } else {
+      el.innerHTML = `<div class="review-card">
+        <div class="verdict ${spellCorrect?"ok":"bad"}">${spellCorrect?"✅ 写对了！":"❌ 写错了"}</div>
+        <div class="word">${esc(cur.w)}</div>
+        ${cur.ph?`<div class="ph">/${esc(cur.ph)}/</div>`:""}
+        <div class="tr">${tr.map(l=>`<div class="line">${esc(l)}</div>`).join("")}${cur.note?`<div class="line note">📝 ${esc(cur.note)}</div>`:""}</div>
+        <div class="review-ops">
+          <button class="rop-forgot" onclick="reviewAnswer('forgot')">✗ 忘了</button>
+          <button class="rop-know" onclick="reviewAnswer('know')">✓ 记得</button>
+          <button class="rop-master" onclick="reviewAnswer('master')">✓✓ 掌握</button>
+        </div>
+      </div>`;
+    }
+    return;
+  }
+
+  // 听音识词模式
   el.innerHTML = `<div class="review-card">
     ${reviewRevealed ? `
       <div class="word">${esc(cur.w)}</div>
@@ -745,6 +932,7 @@ function reviewAnswer(act){
   } else if(act === "forgot"){
     cur.level = 0;
     cur.due = Date.now();
+    cur.mastered = false;
     reviewQueue.splice(reviewIdx, 1);   // 移走当前
     reviewQueue.push(cur);              // 放队尾，本轮稍后再见
   } else if(act === "master"){
@@ -754,6 +942,7 @@ function reviewAnswer(act){
   save();
   reviewDone++;
   reviewRevealed = false;
+  spellChecked = false; spellCorrect = false;
   if(act !== "forgot") reviewIdx++;
   renderReview();
 }
@@ -777,6 +966,7 @@ function setTab(t){
 function render(){
   document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on", b.dataset.t===tab));
   $("review-badge").textContent = words.filter(x=>!x.mastered && x.due<=Date.now()).length;
+  syncSortUI();
   if(tab === "list") renderList();
   else if(tab === "review") renderReview();
 }
